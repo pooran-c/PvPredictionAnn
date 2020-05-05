@@ -9,51 +9,156 @@ import java.util.Arrays;
 
 import com.opencsv.CSVReader;
 
+/**
+ * Simple Artificial Neural Network
+ * 
+ * Data Preprocessed to predict the Pv output using the sliding window
+ * technique, Data used in the Pv output for one year.
+ * 
+ * The neural net has 24 input neurons and one hidden layer with 10 neurons, 24
+ * output neurons. *
+ *
+ */
 public class NeuralNetwork {
 
 	// Variable Declaration
 
-	// Layers
-	static Layer[] layers; 
+	/**
+	 * List of neural net layers
+	 */
+	static Layer[] layers;
 
-	// Training data
-	static TrainingData[] tDataSet; 
+	/**
+	 * The Window size for the sliding window
+	 */
+	static int window = 24;
 
-	// Main Method
-	public static void main(String[] args) {
+	/**
+	 * The Training data
+	 */
+	static Data[] dataSet;
+
+	static Data[] trainSet;
+	static Data[] testSet;
+	
+	static PredictedData[] predictedSet;
+
+	/**
+	 * The Testing Data
+	 */
+	static TestingData[] testDataSet;
+
+	public static void main(String[] args) throws IOException {
 
 		// Set the Min and Max weight value for all Neurons
 		Neuron.setRangeWeight(-1, 1);
 
-		// Create the layers
-
+		// The neural net contains 3 layers
 		layers = new Layer[3];
-		layers[0] = null; // Input Layer 0,5
-		layers[1] = new Layer(5, 6); // Hidden Layer 6,6
-		layers[2] = new Layer(6, 1); // Output Layer 6,1
 
-		// Create the training data
+		// First layer is input layer with 24 neurons
+		layers[0] = null;
+
+		// First hidden layer with, 10 neurons and 24 connections from the input layer
+		layers[1] = new Layer(24, 24);
+
+		// Output layer with 24 neurons and 10 connections from the hidden layer
+		layers[2] = new Layer(24, 24);
+
+		// -------------------------------------------------------------------------------------
+		// creating the Data, Spliting the test and train
+
 		CreateTrainingData();
+		int trainRatio = 70;
+		trainTestSplit(dataSet, trainRatio);
+
+		// -------------------------------------------------------------------------------------
+
+
+		train(100, 0.05f);
 
 		System.out.println("============");
-		System.out.println("Output before training");
+		System.out.println("Predicting for test data after training");
 		System.out.println("============");
-		for (int i = 0; i < tDataSet.length - 1; i++) {
-			forward(tDataSet[i].data);
-			// System.out.println(layers[2].neurons[0].value);
+
+		int totalTestSize = testSet.length;
+		predictedSet = new PredictedData[totalTestSize];
+		
+		for (int i = 0; i < totalTestSize; i++) {
+			forward(testSet[i].actualInput);
+			ArrayList<Float> predicted = new ArrayList<Float>();
+			for(int outputneuron = 0; outputneuron < 24  ; outputneuron++) {				
+				predicted.add(layers[2].neurons[outputneuron].value);
+			}
+			predictedSet[i] = new PredictedData(predicted);
 		}
-
-		train(1000000, 0.05f);
-
-		System.out.println("============");
-		System.out.println("Output after training");
-		System.out.println("============");
-		for (int i = 0; i < tDataSet.length - 1; i++) {
-			forward(tDataSet[i].data);
-			System.out.println(layers[2].neurons[0].value);
+		double rmse = 0.0 ;
+		for (int i = 1 ; i < totalTestSize; i++) {
+			rmse += StatUtil.rmse( testSet[i].expectedOutput, predictedSet[i].predicted);
 		}
+		double finalRmse = rmse / totalTestSize;
+		
+		System.out.println("RMSE values of nural net is " + finalRmse);
+		
+		Plotter p = new Plotter();
+		Plotter p1 = new Plotter();
+		
+		p.makeChart(testSet[1].expectedOutput, "Test");
+		p1.makeChart(predictedSet[1].predicted, "Predicted");
+		
 	}
 
+	private static void trainTestSplit(Data[] dataSet, float trainRatio) {
+		float totalRecords = dataSet.length;
+
+		float splitIndex =  (float) Math.floor(totalRecords * (trainRatio / 100));
+		System.out.println("total records " + totalRecords + " is split into 0 index to " + (int) splitIndex +  
+				" index as train dataset , and  " +(int) (splitIndex + 1 ) + " index to " + (int)(totalRecords - 1)  + " index as test dataset");
+
+		float nextIndex = totalRecords - splitIndex;
+
+		trainSet = new Data[(int)(splitIndex)];
+		testSet = new Data[(int)(nextIndex)];
+
+		trainSet = Arrays.copyOfRange(dataSet, 0, (int) splitIndex);
+		testSet = Arrays.copyOfRange(dataSet, (int) (splitIndex + 1),(int) (totalRecords - 1));
+
+	}
+
+	/**
+	 * This method creates the data for testing the neural net.
+	 * 
+	 * @return arraylist of arraylist of the test data
+	 */
+	private static ArrayList<ArrayList<Float>> getTestData() {
+		String baseDirTest = "src/main/resources/superTest.csv";
+
+		ArrayList<String> pvOutput = new ArrayList<String>();
+
+		ArrayList<ArrayList<Float>> X_test = new ArrayList<ArrayList<Float>>();
+
+		try (Reader reader = Files.newBufferedReader(Paths.get(baseDirTest)); @SuppressWarnings("deprecation")
+		CSVReader csvReader = new CSVReader(reader, ',', '"', 1);) {
+			// Reading Records One by One in a String array
+			String[] nextRecord;
+
+			while ((nextRecord = csvReader.readNext()) != null) {
+				pvOutput.add(nextRecord[1]);
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		ArrayList<Float> intPvOut = parsingStringTofloat(pvOutput);
+		X_test.add(intPvOut);
+		return X_test;
+	}
+
+	/**
+	 * simple output to parse the float to string and adding into arraylist
+	 * 
+	 * @param pvOutput2 ArrayList of pv-ouput-value
+	 * @return
+	 */
 	private static ArrayList<Float> parsingStringTofloat(ArrayList<String> pvOutput2) {
 		ArrayList<Float> res = new ArrayList<Float>();
 		int size = pvOutput2.size();
@@ -63,35 +168,41 @@ public class NeuralNetwork {
 		return res;
 	}
 
-	public static void splitSequence(ArrayList<Float> pvOutput, int window, ArrayList<ArrayList<Float>> X,
-			ArrayList<Float> y) {
+	/**
+	 * This method implements the sliding window technique.
+	 * 
+	 * @param pvOutput arrayList input of pv-output-values from which the data is
+	 *                 split to make it ready for neural net
+	 * @param window   The window size
+	 * @param X        Train X arrayList
+	 * @param y        Train y arrayList
+	 */
+	public static void splitSequence(ArrayList<Float> pvOutput, //
+			int window, //
+			ArrayList<ArrayList<Float>> X, //
+			ArrayList<ArrayList<Float>> y) {
 		for (int i = 0; i < pvOutput.size() - 1; i++) {
 			int endIndex = i + window;
-			if (endIndex > pvOutput.size() - 1) {
+			int endIndexY = endIndex + window;
+			if (endIndex > pvOutput.size() - window) {
 				break;
 			}
-			y.add(pvOutput.get(endIndex));
+			y.add(new ArrayList<Float>(pvOutput.subList(endIndex, endIndexY)));
 			X.add(new ArrayList<Float>(pvOutput.subList(i, endIndex)));
 		}
 	}
 
+	/**
+	 * This method create the training Data, this method uses the split sequence to
+	 * implement sliding window technique
+	 */
 	public static void CreateTrainingData() {
-//        float[] input1 = new float[] {0, 0}; //Expect 0 here
-//        float[] input2 = new float[] {0, 1}; //Expect 1 here
-//        float[] input3 = new float[] {1, 0}; //Expect 1 here
-//        float[] input4 = new float[] {1, 1}; //Expect 0 here
-//       
-//        float[] expectedOutput1 = new float[] {0};
-//        float[] expectedOutput2 = new float[] {1};
-//        float[] expectedOutput3 = new float[] {1};
-//        float[] expectedOutput4 = new float[] {0};
 
-		//String baseDir = "src/main/resources/Book1.csv";
-		String baseDir = "src/main/resources/FEMS494_Train_28_10_2018__16_10_2019_1.csv";
+		String baseDir = "src/main/resources/Data_test/november2018Train.csv";
 		ArrayList<String> pvOutput = new ArrayList<String>();
 
 		ArrayList<ArrayList<Float>> X = new ArrayList<ArrayList<Float>>();
-		ArrayList<Float> y = new ArrayList<Float>();
+		ArrayList<ArrayList<Float>> y = new ArrayList<ArrayList<Float>>();
 
 		try (Reader reader = Files.newBufferedReader(Paths.get(baseDir)); @SuppressWarnings("deprecation")
 		CSVReader csvReader = new CSVReader(reader, ',', '"', 1);) {
@@ -99,67 +210,54 @@ public class NeuralNetwork {
 			String[] nextRecord;
 
 			while ((nextRecord = csvReader.readNext()) != null) {
-				pvOutput.add(nextRecord[17]);
+				pvOutput.add(nextRecord[1]);
 			}
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		ArrayList<Float> intPvOut = parsingStringTofloat(pvOutput);
 
-		int window = 5;
 		splitSequence(intPvOut, window, X, y);
 
 		int size = X.size();
-		// My changes (using an array for the data sets)
-		tDataSet = new TrainingData[size];
-
-		System.out.println("Actual input  " + X);
-		System.out.println("Actual output  " + y);
+		dataSet = new Data[size];
 
 		for (int i = 0; i < size - 1; i++) {
-			tDataSet[i] = new TrainingData(X.get(i), new ArrayList<Float>(Arrays.asList(y.get(i))));
+			dataSet[i] = new Data(X.get(i), y.get(i));
 		}
-//        tDataSet[0] = new TrainingData(input1, expectedOutput1);
-//        tDataSet[1] = new TrainingData(input2, expectedOutput2);
-//        tDataSet[2] = new TrainingData(input3, expectedOutput3);
-//        tDataSet[3] = new TrainingData(input4, expectedOutput4);        
 	}
 
+	/**
+	 * Forward propogation of the neural net,
+	 * 
+	 * @param inputs
+	 */
 	public static void forward(ArrayList<Float> inputs) {
 		// First bring the inputs into the input layer layers[0]
 		layers[0] = new Layer(inputs);
 
 		for (int i = 1; i < layers.length; i++) {
+			//System.out.println("Ith row" + i );
 			for (int j = 0; j < layers[i].neurons.length; j++) {
+				//System.out.println("Jth row" + j );
 				float sum = 0;
 				for (int k = 0; k < layers[i - 1].neurons.length; k++) {
+					 //System.out.println("Kth row" + k );
 					sum += layers[i - 1].neurons[k].value * layers[i].neurons[j].weights[k];
 				}
-				// sum += layers[i].neurons[j].bias; // TODO add in the bias
+				// sum += layers[i].neurons[j].bias; 
 				layers[i].neurons[j].value = StatUtil.Sigmoid(sum);
 			}
 		}
 	}
 
-//    public static void forward(Float[] inputs) {
-//    	// First bring the inputs into the input layer layers[0]
-//    	layers[0] = new Layer(inputs);
-//    	
-//        for(int i = 1; i < layers.length; i++) {
-//        	for(int j = 0; j < layers[i].neurons.length; j++) {
-//        		float sum = 0;
-//        		for(int k = 0; k < layers[i-1].neurons.length; k++) {
-//        			sum += layers[i-1].neurons[k].value*layers[i].neurons[j].weights[k];
-//        		}
-//        		//sum += layers[i].neurons[j].bias; // TODO add in the bias 
-//        		layers[i].neurons[j].value = StatUtil.Sigmoid(sum);
-//        	}
-//        } 	
-//    }
-
-	// backward propogation
-	public static void backward(float learning_rate, TrainingData tData) {
+	/**
+	 * Backward propogation
+	 * 
+	 * @param learning_rate
+	 * @param tData
+	 */
+	public static void backward(float learning_rate, Data tData) {
 
 		int number_layers = layers.length;
 		int out_index = number_layers - 1;
@@ -207,8 +305,14 @@ public class NeuralNetwork {
 
 	}
 
-	// This function sums up all the gradient connecting a given neuron in a given
-	// layer
+	/**
+	 * This function sums up all the gradient connecting a given neuron in a given
+	 * layer
+	 * 
+	 * @param n_index
+	 * @param l_index
+	 * @return
+	 */
 	public static float sumGradient(int n_index, int l_index) {
 		float gradient_sum = 0;
 		Layer current_layer = layers[l_index];
@@ -219,13 +323,65 @@ public class NeuralNetwork {
 		return gradient_sum;
 	}
 
-	// This function is used to train being forward and backward.
+	/**
+	 * This function is used to train being forward and backward.
+	 * 
+	 * @param training_iterations
+	 * @param learning_rate
+	 */
 	public static void train(int training_iterations, float learning_rate) {
 		for (int i = 0; i < training_iterations; i++) {
-			for (int j = 0; j < tDataSet.length - 1; j++) {
-				forward(tDataSet[j].data);
-				backward(learning_rate, tDataSet[j]);
+			for (int j = 0; j < trainSet.length - 1; j++) {
+				forward(trainSet[j].actualInput);
+				backward(learning_rate, trainSet[j]);
 			}
 		}
 	}
+
+//	public static void CreateTrainingData() {
+//		/*
+//		 * float[] input1 = new float[] {0, 0}; //Expect 0 here float[] input2 = new
+//		 * float[] {0, 1}; //Expect 1 here float[] input3 = new float[] {1, 0}; //Expect
+//		 * 1 here float[] input4 = new float[] {1, 1}; //Expect 0 here
+//		 * 
+//		 * float[] expectedOutput1 = new float[] {0}; float[] expectedOutput2 = new
+//		 * float[] {1}; float[] expectedOutput3 = new float[] {1}; float[]
+//		 * expectedOutput4 = new float[] {0};
+//		 */
+//
+//		String baseDir = "src/main/resources/november2018Train.csv";
+//		ArrayList<String> pvOutput = new ArrayList<String>();
+//
+//		ArrayList<ArrayList<Float>> X = new ArrayList<ArrayList<Float>>();
+//		ArrayList<ArrayList<Float>> y = new ArrayList<ArrayList<Float>>();
+//
+//		try (Reader reader = Files.newBufferedReader(Paths.get(baseDir)); @SuppressWarnings("deprecation")
+//		CSVReader csvReader = new CSVReader(reader, ',', '"', 1);) {
+//			// Reading Records One by One in a String array
+//			String[] nextRecord;
+//
+//			while ((nextRecord = csvReader.readNext()) != null) {
+//				pvOutput.add(nextRecord[1]);
+//			}
+//		} catch (IOException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		ArrayList<Float> intPvOut = parsingStringTofloat(pvOutput);
+//
+//		splitSequence(intPvOut, window, X, y);
+//
+//		int size = X.size();
+//		// My changes (using an array for the data sets)
+//		tDataSet = new TrainingData[size];
+//
+//		for (int i = 0; i < size - 1; i++) {
+//			tDataSet[i] = new TrainingData(X.get(i), y.get(i));
+//		}
+//		/*
+//		 * tDataSet[0] = new TrainingData(input1, expectedOutput1); tDataSet[1] = new
+//		 * TrainingData(input2, expectedOutput2); tDataSet[2] = new TrainingData(input3,
+//		 * expectedOutput3); tDataSet[3] = new TrainingData(input4, expectedOutput4);
+//		 */       
+//	}
 }
