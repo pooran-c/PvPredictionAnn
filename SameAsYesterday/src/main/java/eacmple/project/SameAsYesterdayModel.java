@@ -10,10 +10,6 @@ import java.util.Arrays;
 import com.opencsv.CSVReader;
 
 
-
-
-
-
 public class SameAsYesterdayModel {
 	
 	/**
@@ -33,14 +29,38 @@ public class SameAsYesterdayModel {
 	
 	public static void main(String[] args) throws IOException {
 		
-		CreateTrainingData();
+		CreateData();
 		int trainRatio = 70;
 		trainTestSplit(dataSet, trainRatio);
 		
+		int totalTestSize = testSet.length;
+		predictedSet = new PredictedData[totalTestSize];
+		
+		for (int i = 0; i < totalTestSize-1; i++) {
+			ArrayList<Float> predicted = new ArrayList<Float>();
+			predicted.addAll(testSet[i + 1].actualInput);
+			
+			predictedSet[i] = new PredictedData(predicted);
+		}
+		
+		double rmse = 0.0 ;
+		for (int i = 0 ; i < totalTestSize -1; i++) {
+			rmse += StatUtil.rmse( testSet[i].expectedOutput, predictedSet[i].predicted);
+		}
+		double finalRmse = rmse / totalTestSize;
+		
+		System.out.println("RMSE values of nural net is " + finalRmse);
+		
+		Plotter p = new Plotter();
+		Plotter p1 = new Plotter();
+		
+		p.makeChart(testSet[1].expectedOutput, "Test");
+		p1.makeChart(predictedSet[1].predicted, "Predicted");
+		
 	}
 
-	private static void CreateTrainingData() {
-		String baseDir = "src/main/resources/Data_test/november2018Train.csv";
+	private static void CreateData() {
+		String baseDir = "src/main/resources/november2018Train.csv";
 		ArrayList<String> pvOutput = new ArrayList<String>();
 
 		ArrayList<ArrayList<Float>> X = new ArrayList<ArrayList<Float>>();
