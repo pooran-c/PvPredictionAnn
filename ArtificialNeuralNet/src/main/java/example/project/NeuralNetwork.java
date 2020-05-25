@@ -7,6 +7,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+
 import com.opencsv.CSVReader;
 
 /**
@@ -40,7 +42,7 @@ public class NeuralNetwork {
 
 	static Data[] trainSet;
 	static Data[] testSet;
-	
+
 	static PredictedData[] predictedSet;
 
 	/**
@@ -74,8 +76,7 @@ public class NeuralNetwork {
 
 		// -------------------------------------------------------------------------------------
 
-
-		train(100, 0.05f);
+		train(1000, 0.05f);
 
 		System.out.println("============");
 		System.out.println("Predicting for test data after training");
@@ -83,45 +84,46 @@ public class NeuralNetwork {
 
 		int totalTestSize = testSet.length;
 		predictedSet = new PredictedData[totalTestSize];
-		
+
 		for (int i = 0; i < totalTestSize; i++) {
 			forward(testSet[i].actualInput);
 			ArrayList<Float> predicted = new ArrayList<Float>();
-			for(int outputneuron = 0; outputneuron < 24  ; outputneuron++) {				
+			for (int outputneuron = 0; outputneuron < 24; outputneuron++) {
 				predicted.add(layers[2].neurons[outputneuron].value);
 			}
 			predictedSet[i] = new PredictedData(predicted);
 		}
-		double rmse = 0.0 ;
-		for (int i = 1 ; i < totalTestSize; i++) {
-			rmse += StatUtil.rmse( testSet[i].expectedOutput, predictedSet[i].predicted);
+		double rmse = 0.0;
+		for (int i = 1; i < totalTestSize; i++) {
+			rmse += StatUtil.rmse(testSet[i].expectedOutput, predictedSet[i].predicted);
 		}
 		double finalRmse = rmse / totalTestSize;
-		
+
 		System.out.println("RMSE values of nural net is " + finalRmse);
-		
-		Plotter p = new Plotter();
-		Plotter p1 = new Plotter();
-		
-		p.makeChart(testSet[1].expectedOutput, "Test");
-		p1.makeChart(predictedSet[1].predicted, "Predicted");
-		
+
+//		Plotter p = new Plotter();
+//		Plotter p1 = new Plotter();
+//		
+//		p.makeChart(testSet[1].expectedOutput, "Test");
+//		p1.makeChart(predictedSet[1].predicted, "Predicted");
+
 	}
 
 	private static void trainTestSplit(Data[] dataSet, float trainRatio) {
 		float totalRecords = dataSet.length;
 
-		float splitIndex =  (float) Math.floor(totalRecords * (trainRatio / 100));
-		System.out.println("total records " + totalRecords + " is split into 0 index to " + (int) splitIndex +  
-				" index as train dataset , and  " +(int) (splitIndex + 1 ) + " index to " + (int)(totalRecords - 1)  + " index as test dataset");
+		float splitIndex = (float) Math.floor(totalRecords * (trainRatio / 100));
+		System.out.println("total records " + totalRecords + " is split into 0 index to " + (int) splitIndex
+				+ " index as train dataset , and  " + (int) (splitIndex + 1) + " index to " + (int) (totalRecords - 1)
+				+ " index as test dataset");
 
 		float nextIndex = totalRecords - splitIndex;
 
-		trainSet = new Data[(int)(splitIndex)];
-		testSet = new Data[(int)(nextIndex)];
+		trainSet = new Data[(int) (splitIndex)];
+		testSet = new Data[(int) (nextIndex)];
 
 		trainSet = Arrays.copyOfRange(dataSet, 0, (int) splitIndex);
-		testSet = Arrays.copyOfRange(dataSet, (int) (splitIndex + 1),(int) (totalRecords - 1));
+		testSet = Arrays.copyOfRange(dataSet, (int) (splitIndex + 1), (int) (totalRecords - 1));
 
 	}
 
@@ -217,7 +219,12 @@ public class NeuralNetwork {
 		}
 		ArrayList<Float> intPvOut = parsingStringTofloat(pvOutput);
 
-		splitSequence(intPvOut, window, X, y);
+		ArrayList<Float> normalised = new ArrayList<Float>();
+		
+		// Normalising the Data
+		normalised = GetNormalisedData(intPvOut);
+
+		splitSequence(normalised, window, X, y);
 
 		int size = X.size();
 		dataSet = new Data[size];
@@ -225,6 +232,29 @@ public class NeuralNetwork {
 		for (int i = 0; i < size - 1; i++) {
 			dataSet[i] = new Data(X.get(i), y.get(i));
 		}
+	}
+
+	private static ArrayList<Float> GetNormalisedData(ArrayList<Float> intPvOut) {
+		DescriptiveStatistics stats = new DescriptiveStatistics();
+		ArrayList<Float> normalisedPvOutput  = new ArrayList<Float>();
+
+		for (int i = 0; i < intPvOut.size(); i++) {
+			stats.addValue(intPvOut.get(i));
+		}
+		
+		// Compute some statistics
+		double mean = stats.getMean();
+		double std = stats.getStandardDeviation();
+		
+		System.out.println("Mean of the Data is : " + mean);
+		System.out.println("Standard Deviation is : " + std);
+		
+		for (int i = 0; i < intPvOut.size(); i++) {
+			
+			normalisedPvOutput.add((float)(( intPvOut.get(i) - mean ) / std) );
+		}
+		return normalisedPvOutput;
+
 	}
 
 	/**
@@ -237,15 +267,15 @@ public class NeuralNetwork {
 		layers[0] = new Layer(inputs);
 
 		for (int i = 1; i < layers.length; i++) {
-			//System.out.println("Ith row" + i );
+			// System.out.println("Ith row" + i );
 			for (int j = 0; j < layers[i].neurons.length; j++) {
-				//System.out.println("Jth row" + j );
+				// System.out.println("Jth row" + j );
 				float sum = 0;
 				for (int k = 0; k < layers[i - 1].neurons.length; k++) {
-					 //System.out.println("Kth row" + k );
+					// System.out.println("Kth row" + k );
 					sum += layers[i - 1].neurons[k].value * layers[i].neurons[j].weights[k];
 				}
-				// sum += layers[i].neurons[j].bias; 
+				// sum += layers[i].neurons[j].bias;
 				layers[i].neurons[j].value = StatUtil.Sigmoid(sum);
 			}
 		}

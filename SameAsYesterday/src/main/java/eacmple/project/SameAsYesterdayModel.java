@@ -51,11 +51,11 @@ public class SameAsYesterdayModel {
 		
 		System.out.println("RMSE values of nural net is " + finalRmse);
 		
-		Plotter p = new Plotter();
-		Plotter p1 = new Plotter();
-		
-		p.makeChart(testSet[1].expectedOutput, "Test");
-		p1.makeChart(predictedSet[1].predicted, "Predicted");
+//		Plotter p = new Plotter();
+//		Plotter p1 = new Plotter();
+//		
+//		p.makeChart(testSet[1].expectedOutput, "Test");
+//		p1.makeChart(predictedSet[1].predicted, "Predicted");
 		
 	}
 
