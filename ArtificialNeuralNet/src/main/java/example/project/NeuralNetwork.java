@@ -62,21 +62,21 @@ public class NeuralNetwork {
 		layers[0] = null;
 
 		// First hidden layer with, 10 neurons and 24 connections from the input layer
-		layers[1] = new Layer(24, 24);
+		layers[1] = new Layer(24, 10);
 
 		// Output layer with 24 neurons and 10 connections from the hidden layer
-		layers[2] = new Layer(24, 24);
+		layers[2] = new Layer(10, 24);
 
 		// -------------------------------------------------------------------------------------
 		// creating the Data, Spliting the test and train
 
 		CreateTrainingData();
-		int trainRatio = 70;
+		int trainRatio = 80;
 		trainTestSplit(dataSet, trainRatio);
 
 		// -------------------------------------------------------------------------------------
 
-		train(1000, 0.05f);
+		train(10000, 0.05f);
 
 		System.out.println("============");
 		System.out.println("Predicting for test data after training");
@@ -101,11 +101,18 @@ public class NeuralNetwork {
 
 		System.out.println("RMSE values of nural net is " + finalRmse);
 
-//		Plotter p = new Plotter();
-//		Plotter p1 = new Plotter();
-//		
-//		p.makeChart(testSet[1].expectedOutput, "Test");
-//		p1.makeChart(predictedSet[1].predicted, "Predicted");
+		System.out.println(testSet[1].expectedOutput);
+
+		System.out.println(predictedSet[1].predicted);
+
+		Plotter p = new Plotter();
+		Plotter p1 = new Plotter();
+		
+		p.makeChart(testSet[1].expectedOutput, "Test");
+		p1.makeChart(predictedSet[1].predicted, "Predicted");
+		
+		p.makeChart(testSet[2].expectedOutput, "Test2");
+		p1.makeChart(predictedSet[2].predicted, "Predicted2");
 
 	}
 
@@ -127,33 +134,33 @@ public class NeuralNetwork {
 
 	}
 
-	/**
-	 * This method creates the data for testing the neural net.
-	 * 
-	 * @return arraylist of arraylist of the test data
-	 */
-	private static ArrayList<ArrayList<Float>> getTestData() {
-		String baseDirTest = "src/main/resources/superTest.csv";
-
-		ArrayList<String> pvOutput = new ArrayList<String>();
-
-		ArrayList<ArrayList<Float>> X_test = new ArrayList<ArrayList<Float>>();
-
-		try (Reader reader = Files.newBufferedReader(Paths.get(baseDirTest)); @SuppressWarnings("deprecation")
-		CSVReader csvReader = new CSVReader(reader, ',', '"', 1);) {
-			// Reading Records One by One in a String array
-			String[] nextRecord;
-
-			while ((nextRecord = csvReader.readNext()) != null) {
-				pvOutput.add(nextRecord[1]);
-			}
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		ArrayList<Float> intPvOut = parsingStringTofloat(pvOutput);
-		X_test.add(intPvOut);
-		return X_test;
-	}
+//	/**
+//	 * This method creates the data for testing the neural net.
+//	 * 
+//	 * @return arrayList of arrayList of the test data
+//	 */
+//	private static ArrayList<ArrayList<Float>> getTestData() {
+//		String baseDirTest = "src/main/resources/superTest.csv";
+//
+//		ArrayList<String> pvOutput = new ArrayList<String>();
+//
+//		ArrayList<ArrayList<Float>> X_test = new ArrayList<ArrayList<Float>>();
+//
+//		try (Reader reader = Files.newBufferedReader(Paths.get(baseDirTest)); @SuppressWarnings("deprecation")
+//		CSVReader csvReader = new CSVReader(reader, ',', '"', 1);) {
+//			// Reading Records One by One in a String array
+//			String[] nextRecord;
+//
+//			while ((nextRecord = csvReader.readNext()) != null) {
+//				pvOutput.add(nextRecord[1]);
+//			}
+//		} catch (IOException e) {
+//			e.printStackTrace();
+//		}
+//		ArrayList<Float> intPvOut = parsingStringTofloat(pvOutput);
+//		X_test.add(intPvOut);
+//		return X_test;
+//	}
 
 	/**
 	 * simple output to parse the float to string and adding into arraylist
@@ -183,9 +190,10 @@ public class NeuralNetwork {
 			int window, //
 			ArrayList<ArrayList<Float>> X, //
 			ArrayList<ArrayList<Float>> y) {
-		for (int i = 0; i < pvOutput.size() - 1; i++) {
+		for (int i = 0; i < pvOutput.size() - 1; i=i+window) {
 			int endIndex = i + window;
 			int endIndexY = endIndex + window;
+			System.out.println(endIndex + " to " + endIndexY);
 			if (endIndex > pvOutput.size() - window) {
 				break;
 			}
@@ -220,7 +228,7 @@ public class NeuralNetwork {
 		ArrayList<Float> intPvOut = parsingStringTofloat(pvOutput);
 
 		ArrayList<Float> normalised = new ArrayList<Float>();
-		
+
 		// Normalising the Data
 		normalised = GetNormalisedData(intPvOut);
 
@@ -236,22 +244,22 @@ public class NeuralNetwork {
 
 	private static ArrayList<Float> GetNormalisedData(ArrayList<Float> intPvOut) {
 		DescriptiveStatistics stats = new DescriptiveStatistics();
-		ArrayList<Float> normalisedPvOutput  = new ArrayList<Float>();
+		ArrayList<Float> normalisedPvOutput = new ArrayList<Float>();
 
 		for (int i = 0; i < intPvOut.size(); i++) {
 			stats.addValue(intPvOut.get(i));
 		}
-		
+
 		// Compute some statistics
 		double mean = stats.getMean();
 		double std = stats.getStandardDeviation();
-		
+
 		System.out.println("Mean of the Data is : " + mean);
 		System.out.println("Standard Deviation is : " + std);
-		
+
 		for (int i = 0; i < intPvOut.size(); i++) {
-			
-			normalisedPvOutput.add((float)(( intPvOut.get(i) - mean ) / std) );
+
+			normalisedPvOutput.add((float) ((intPvOut.get(i) - mean) / std));
 		}
 		return normalisedPvOutput;
 
