@@ -51,4 +51,10 @@ public class StatUtil {
     	
     	return Math.sqrt(rss/n);
     }
+    
+    public static double rmse(Float truth, Float prediction) {    
+    	double rmse = 0.0;
+    	rmse = Math.sqrt(Math.pow(truth - prediction, 2));
+    	return rmse;
+    }
 }

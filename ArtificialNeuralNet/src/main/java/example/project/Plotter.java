@@ -21,19 +21,21 @@ public class Plotter {
 			vals[i] = (double) x.get(i);
 		}
 
-		JFreeChart lineChart  = ChartFactory.createLineChart("Pv output", "Time", "Energy",  createDataset(vals),   PlotOrientation.VERTICAL,
-		         true,true,false);
+		JFreeChart lineChart = ChartFactory.createLineChart("Pv output", "Time", "Energy", createDataset(vals),
+				PlotOrientation.VERTICAL, true, true, false);
 
 		ChartUtils.saveChartAsPNG(new File(name + ".png"), lineChart, 950, 400);
 
 	}
 	
-	   private DefaultCategoryDataset createDataset(double [] vals ) {
-		      DefaultCategoryDataset dataset = new DefaultCategoryDataset( );
-		      for (int i = 0 ; i<vals.length ; i++ ) {
-		    	  dataset.addValue(vals[i], "Energy", String.valueOf(i));
-		      }
+	
 
-		      return dataset;
-		   }
+	private DefaultCategoryDataset createDataset(double[] vals) {
+		DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+		for (int i = 0; i < vals.length; i++) {
+			dataset.addValue(vals[i], "Energy", String.valueOf(i));
+		}
+
+		return dataset;
+	}
 }

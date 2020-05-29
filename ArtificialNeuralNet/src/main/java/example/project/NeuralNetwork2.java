@@ -17,11 +17,14 @@ import com.opencsv.CSVReader;
  * Data Preprocessed to predict the Pv output using the sliding window
  * technique, Data used in the Pv output for one year.
  * 
- * The neural net has 24 input neurons and one hidden layer with 10 neurons, 24
- * output neurons. *
+ * Sliding window is created with "24 input data points" and "one output data
+ * point"
+ * 
+ * The neural net has 24 input neurons and one hidden layer with 10 neurons, 1
+ * output neurons.
  *
  */
-public class NeuralNetwork {
+public class NeuralNetwork2 {
 
 	// Variable Declaration
 
@@ -36,15 +39,25 @@ public class NeuralNetwork {
 	static int window = 24;
 
 	/**
-	 * The Training data
+	 * The dataset containing the PV production
 	 */
-	static Data[] dataSet;
-
-	static Data[] trainSet;
-	static Data[] testSet;
-
-	static PredictedData[] predictedSet;
-
+	static Data2[] dataSet;
+	
+	/**
+	 * The training set
+	 */
+	static Data2[] trainSet;
+	
+	/**
+	 * The test set
+	 */
+	static Data2[] testSet;
+	
+	/**
+	 * The predicted data set
+	 */
+	static PredictedData2[] predictedSet;
+	
 	/**
 	 * The Testing Data
 	 */
@@ -64,68 +77,90 @@ public class NeuralNetwork {
 		// First hidden layer with, 10 neurons and 24 connections from the input layer
 		layers[1] = new Layer(24, 10);
 
-		// Output layer with 24 neurons and 10 connections from the hidden layer
-		layers[2] = new Layer(10, 24);
+		// Output layer with 1 neurons and 10 connections from the hidden layer
+		layers[2] = new Layer(10, 1);
 
-		// -------------------------------------------------------------------------------------
-		// creating the Data, Spliting the test and train
+		// ==========================================================
+		// creating the Data, Splitting the test and train
 
 		CreateTrainingData();
 		int trainRatio = 80;
 		trainTestSplit(dataSet, trainRatio);
 
-		// -------------------------------------------------------------------------------------
-
-		train(10000, 0.05f);
+		// ==========================================================
+		// Training the Neural network
+		train(10, 0.05f);
+		
+		// ==========================================================
 
 		System.out.println("============");
 		System.out.println("Predicting for test data after training");
 		System.out.println("============");
 
 		int totalTestSize = testSet.length;
-		predictedSet = new PredictedData[totalTestSize];
-
+		predictedSet = new PredictedData2[totalTestSize];
+		
+		/*
+		 * Every predict (Forward propogation) gives one output data points
+		 * example : if forward propogation invoked 24 times, we get 24 predicted data points
+		 *  
+		 */
+		ArrayList<Float> eOutput = new ArrayList<Float>();
 		for (int i = 0; i < totalTestSize; i++) {
 			forward(testSet[i].actualInput);
-			ArrayList<Float> predicted = new ArrayList<Float>();
-			for (int outputneuron = 0; outputneuron < 24; outputneuron++) {
-				predicted.add(layers[2].neurons[outputneuron].value);
-			}
-			predictedSet[i] = new PredictedData(predicted);
+			// value on the last neuron will give the predicted data 
+			eOutput.add(testSet[i].actualInput.get(0));
+			predictedSet[i] = new PredictedData2(layers[2].neurons[0].value);
 		}
+
+		
 		double rmse = 0.0;
-		for (int i = 1; i < totalTestSize; i++) {
-			rmse += StatUtil.rmse(testSet[i].expectedOutput, predictedSet[i].predicted);
+		for (int i = 1; i < totalTestSize; i++) {			
+			rmse += StatUtil.rmse(testSet[i].getExpectedOutput() , predictedSet[i].predicted );
 		}
 		double finalRmse = rmse / totalTestSize;
 
 		System.out.println("RMSE values of nural net is " + finalRmse);
 
-		System.out.println(testSet[1].expectedOutput);
-
-		System.out.println(predictedSet[1].predicted);
 
 		Plotter p = new Plotter();
 		Plotter p1 = new Plotter();
 		
-		p.makeChart(testSet[1].expectedOutput, "Test");
-		p1.makeChart(predictedSet[1].predicted, "Predicted");
+
+		//ArrayList<Float> eOutput = new ArrayList<Float>();
+		ArrayList<Float> pOutput = new ArrayList<Float>();
+		for (int i = testSet.length-23; i < testSet.length-1; i ++) {
+			
+			pOutput.add(predictedSet[i].predicted);			
+		}
 		
-		p.makeChart(testSet[2].expectedOutput, "Test2");
-		p1.makeChart(predictedSet[2].predicted, "Predicted2");
+
+
+		System.out.println(eOutput.size());
+		System.out.println(pOutput.size());
+		p.makeChart(eOutput, "Test3");
+		p1.makeChart(pOutput, "Predicted3");
+		
+		
+
+		
+//		p.makeChart(testSet[2].expectedOutput, "Test2");
+//		p1.makeChart(predictedSet[2].predicted, "Predicted2");
 
 	}
 
-	private static void trainTestSplit(Data[] dataSet, float trainRatio) {
+	private static void trainTestSplit(Data2[] dataSet, float trainRatio) {
 		float totalRecords = dataSet.length;
 
 		float splitIndex = (float) Math.floor(totalRecords * (trainRatio / 100));
-		System.out.println("totalRecords  " + (int)totalRecords + " is split into " + (int) splitIndex + " train data and " + ((int)totalRecords - (int) splitIndex) + " test data");		
+		System.out.println("total records " + totalRecords + " is split into 0 index to " + (int) splitIndex
+				+ " index as train dataset , and  " + (int) (splitIndex + 1) + " index to " + (int) (totalRecords - 1)
+				+ " index as test dataset");
 
 		float nextIndex = totalRecords - splitIndex;
 
-		trainSet = new Data[(int) (splitIndex)];
-		testSet = new Data[(int) (nextIndex)];
+		trainSet = new Data2[(int) (splitIndex)];
+		testSet = new Data2[(int) (nextIndex)];
 
 		trainSet = Arrays.copyOfRange(dataSet, 0, (int) splitIndex);
 		testSet = Arrays.copyOfRange(dataSet, (int) (splitIndex + 1), (int) (totalRecords - 1));
@@ -187,15 +222,15 @@ public class NeuralNetwork {
 	public static void splitSequence(ArrayList<Float> pvOutput, //
 			int window, //
 			ArrayList<ArrayList<Float>> X, //
-			ArrayList<ArrayList<Float>> y) {
-		for (int i = 0; i < pvOutput.size() - 1; i=i+window) {
+			ArrayList<Float> y) {
+		for (int i = 0; i < pvOutput.size() - 1; i++) {
 			int endIndex = i + window;
-			int endIndexY = endIndex + window;
-			//System.out.println(endIndex + " to " + endIndexY);
+			int endIndexY = endIndex + 1;
+			//System.out.println(i + " to " + endIndex + " is x and y is  " + endIndexY);
 			if (endIndex > pvOutput.size() - window) {
 				break;
 			}
-			y.add(new ArrayList<Float>(pvOutput.subList(endIndex, endIndexY)));
+			y.add(pvOutput.get(endIndexY));
 			X.add(new ArrayList<Float>(pvOutput.subList(i, endIndex)));
 		}
 	}
@@ -210,7 +245,7 @@ public class NeuralNetwork {
 		ArrayList<String> pvOutput = new ArrayList<String>();
 
 		ArrayList<ArrayList<Float>> X = new ArrayList<ArrayList<Float>>();
-		ArrayList<ArrayList<Float>> y = new ArrayList<ArrayList<Float>>();
+		ArrayList<Float> y = new ArrayList<Float>();
 
 		try (Reader reader = Files.newBufferedReader(Paths.get(baseDir)); @SuppressWarnings("deprecation")
 		CSVReader csvReader = new CSVReader(reader, ',', '"', 1);) {
@@ -228,15 +263,15 @@ public class NeuralNetwork {
 		ArrayList<Float> normalised = new ArrayList<Float>();
 
 		// Normalising the Data
-		normalised = GetNormalisedData(intPvOut);
+		// normalised = GetNormalisedData(intPvOut);
 
-		splitSequence(normalised, window, X, y);
+		splitSequence(intPvOut, window, X, y);
 
 		int size = X.size();
-		dataSet = new Data[size];
+		dataSet = new Data2[size];
 
 		for (int i = 0; i < size - 1; i++) {
-			dataSet[i] = new Data(X.get(i), y.get(i));
+			dataSet[i] = new Data2(X.get(i), y.get(i));
 		}
 	}
 
@@ -293,7 +328,7 @@ public class NeuralNetwork {
 	 * @param learning_rate
 	 * @param tData
 	 */
-	public static void backward(float learning_rate, Data tData) {
+	public static void backward(float learning_rate, Data2 tData) {
 
 		int number_layers = layers.length;
 		int out_index = number_layers - 1;
@@ -303,7 +338,7 @@ public class NeuralNetwork {
 		for (int i = 0; i < layers[out_index].neurons.length; i++) {
 			// and for each of their weights
 			float output = layers[out_index].neurons[i].value;
-			float target = tData.expectedOutput.get(i);
+			float target = tData.expectedOutput;// .get(i);
 			float derivative = output - target;
 			float delta = derivative * (output * (1 - output));
 			layers[out_index].neurons[i].gradient = delta;
